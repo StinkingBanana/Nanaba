@@ -26,10 +26,10 @@ Prototype. Working in progress. Use it at your own risk.
 ```sh
   # Run Dev
   yarn
-  yarn run dev
+  yarn dev
 
   # Build 
-  yarn run build:dir
+  yarn build:dir
 ```
 
 ## Tool used
