@@ -3,7 +3,7 @@ import {ipcRenderer} from 'electron'
 const state = {
   history: [],
   viewers: {},
-  mute: false
+  mute: true
 }
 
 const mutations = {
@@ -40,13 +40,14 @@ const actions = {
       sub: data.userstate.subscriber,
       turbo: data.userstate.turbo,
       displayname: data.userstate['display-name'],
+      messageType: data.userstate['message-type'],
       username: data.userstate.username,
       message: data.message,
       createdAt: this._vm.$moment().format('MM/DD HH:mm:ss')
     }
     commit('ADD_MSG', processed)
 
-    if (!data.self && !state.mute) {
+    if (!data.self && !state.mute && data.userstate['message-type'] !== 'whisper') {
       ipcRenderer.sendSync('tts', data.message)
     }
   },

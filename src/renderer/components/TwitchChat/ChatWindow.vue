@@ -33,6 +33,9 @@
             </div>
           </div>
           <div>
+            <span v-if="item['messageType'] === 'whisper'">
+              <b>[ WHISPER ]: </b>
+            </span>
             <span v-for="(m, index) in markupURL(item.message)" :key="index">
               <span v-if="index%2==0">{{m}}</span>
               <a href="#" @click="openLink(m)" v-else>{{m}}</a>
@@ -41,7 +44,7 @@
         </div>
       </div>
       <div class="media-right">
-        <a class="icon" @click="wavenet(item)"  v-tooltip="'WaveNet Speech'" v-if="noGapi">
+        <a class="icon" @click="gtts(item)"  v-tooltip="'Google Speech'" v-if="noGapi">
           <font-awesome-icon :icon="faWonSign" />
         </a>
         <a class="icon" @click="play(item.message)" v-tooltip="'Microsoft Speech'">
@@ -58,7 +61,9 @@
   import faWonSign from '@fortawesome/fontawesome-free-solid/faWonSign'
   import {ipcRenderer} from 'electron'
   import axios from 'axios'
-
+  import SimpleTTS from 'simpletts'
+  const tts = new SimpleTTS()
+  
   export default {
     components: { FontAwesomeIcon },
     props: ['height'],
@@ -86,38 +91,91 @@
       play: function (msg) {
         ipcRenderer.sendSync('tts', msg)
       },
-      wavenet: function (item) {
+      containEnglishAndNumberOnly: function (str) {
+        if (str === undefined) return false
+        return /^[a-zA-Z0-9 ]*$/.test(str)
+      },
+      containJapanese: function (str) {
+        if (str === undefined) return false
+        return /[\u3040-\u309f\u30A0-\u30FF]/.test(str)
+      },
+      escapeLink: function (str) {
+        if (str === undefined) return str
+        /* eslint-disable */
+        return str.replace(/((http|ftp|https):\/\/[\w\-_]+(\.[\w\-_]+)+([\w\-\.,@?^=%&amp;:/~\+#]*[\w\-\@?^=%&amp;/~\+#])?)/, "LINK")
+      },
+      gtts: function (item) {
         if (this.$store.state.app.config['gapi'] === undefined) {
           return
         }
         if (item.wavenet === undefined) {
-          let gapi = this.$store.state.app.config.gapi
-          console.log(gapi)
-          axios({
-            method: 'post',
-            url: 'https://texttospeech.googleapis.com/v1beta1/text:synthesize?key=' + gapi,
-            data: {
-              'input': {
-                'text': item.message
+          let gapi = this.$store.state.app.config['gapi']
+          let tosay = this.escapeLink(item.message)
+
+          if (this.containJapanese(tosay)) {
+            axios({
+              method: 'post',
+              url: 'https://texttospeech.googleapis.com/v1beta1/text:synthesize?key=' + gapi,
+              data: {
+                'input': {
+                  'text': tosay
+                },
+                'voice': {
+                  'languageCode': 'ja-JP',
+                  'name': 'ja-JP-Standard-A',
+                  'ssmlGender': 'FEMALE'
+                },
+                'audioConfig': {
+                  'audioEncoding': 'MP3'
+                }
               },
-              'voice': {
-                'languageCode': 'en-US',
-                'name': 'en-US-Wavenet-C',
-                'ssmlGender': 'FEMALE'
+              responseType: 'json'
+            }).then(function (response) {
+              item.gtts = 'data:audio/ogg;base64,' + response.data.audioContent
+              new Audio(item.gtts).play()
+            }).catch(function (err) {
+              console.log(err)
+            })
+          }
+          else if (this.containEnglishAndNumberOnly(tosay)) {
+            axios({
+              method: 'post',
+              url: 'https://texttospeech.googleapis.com/v1beta1/text:synthesize?key=' + gapi,
+              data: {
+                'input': {
+                  'text': tosay
+                },
+                'voice': {
+                  'languageCode': 'en-US',
+                  'name': 'en-US-Wavenet-C',
+                  'ssmlGender': 'FEMALE'
+                },
+                'audioConfig': {
+                  'audioEncoding': 'MP3'
+                }
               },
-              'audioConfig': {
-                'audioEncoding': 'MP3'
-              }
-            },
-            responseType: 'json'
-          }).then(function (response) {
-            item.wavenet = 'data:audio/ogg;base64,' + response.data.audioContent
-            new Audio(item.wavenet).play()
-          }).catch(function (err) {
-            console.log(err)
-          })
+              responseType: 'json'
+            }).then(function (response) {
+              item.gtts = 'data:audio/ogg;base64,' + response.data.audioContent
+              new Audio(item.gtts).play()
+            }).catch(function (err) {
+              console.log(err)
+            })
+          }
+          else {
+            tts.read({ "text": item.message, "volume": 100, "speed": 50, "voice": {gender: "female", name: "microsoft hanhan desktop"} })
+          }
+
         } else {
-          new Audio(item.wavenet).play()
+          if (item.gtts) {
+            new Audio(item.gtts).play()
+          }  
+          // else if (item.message) {
+          //   var u = new SpeechSynthesisUtterance()
+          //   u.text = item.message
+          //   u.lang = 'zh-TW'
+          //   speechSynthesis.speak(u)
+          // }
         }
       },
       markupURL: function (str) {

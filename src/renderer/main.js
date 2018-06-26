@@ -41,7 +41,7 @@ new Vue({
   },
   created: () => {
     TwitchIRC.on('message', (channel, userstate, message, self) => {
-      console.log(userstate, message)
+      // console.log(userstate, message)
       store.dispatch('USER_MSG', {type: 'meesage', userstate: userstate, message: message, self: self})
     })
     TwitchIRC.on('names', (channel, users) => {
